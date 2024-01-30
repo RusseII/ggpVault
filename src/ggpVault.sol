@@ -3,17 +3,44 @@ pragma solidity ^0.8.20;
 
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ERC4626Mock is ERC4626 {
-    constructor(
-        address underlying
-    ) ERC20("ERC4626Mock", "E4626M") ERC4626(IERC20(underlying)) {}
+contract ERC4626Mock is Ownable, ERC4626 {
+    using SafeERC20 for IERC20;
+    uint256 public stakingTotalAssets;
+    event WithdrawnForStaking(address indexed caller, uint256 assets);
+    event DepositedFromStaking(address indexed caller, uint256 amount);
 
-    function mint(address account, uint256 amount) external {
-        _mint(account, amount);
+    function withdrawForStaking(uint256 amount) external onlyOwner {
+        emit WithdrawnForStaking(msg.sender, amount);
+        // might be re-entry bug here
+        IERC20(asset()).safeTransfer(msg.sender, amount);
+
+        //i forget if this needs to be before or after
+        stakingTotalAssets += amount;
+
+        // _asset.
+        // send the specified amount of assets to the caller
     }
 
-    function burn(address account, uint256 amount) external {
-        _burn(account, amount);
+    function depositFromStaking(uint256 amount) public {
+        emit DepositedFromStaking(msg.sender, amount);
+        stakingTotalAssets -= amount;
+        // receive the specified amount of assets from the caller
+    }
+
+    constructor(
+        address underlying
+    ) ERC20("ERC4626Mock", "E4626M") ERC4626(IERC20(underlying)) {
+        stakingTotalAssets = 0;
+    }
+
+    function getUnderlyingBalance() public view returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
+    function totalAssets() public view override returns (uint256) {
+        return stakingTotalAssets + getUnderlyingBalance();
     }
 }
