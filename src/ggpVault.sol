@@ -13,26 +13,24 @@ contract ERC4626Mock is Ownable, ERC4626 {
     event DepositedFromStaking(address indexed caller, uint256 amount);
 
     function withdrawForStaking(uint256 amount) external onlyOwner {
-        emit WithdrawnForStaking(msg.sender, amount);
-        // might be re-entry bug here
-        IERC20(asset()).safeTransfer(msg.sender, amount);
-
-        //i forget if this needs to be before or after
         stakingTotalAssets += amount;
-
-        // _asset.
-        // send the specified amount of assets to the caller
+        emit WithdrawnForStaking(msg.sender, amount);
+        IERC20(asset()).safeTransfer(msg.sender, amount);
     }
 
     function depositFromStaking(uint256 amount) public {
-        emit DepositedFromStaking(msg.sender, amount);
         stakingTotalAssets -= amount;
-        // receive the specified amount of assets from the caller
+        emit DepositedFromStaking(msg.sender, amount);
+        IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     constructor(
         address underlying
-    ) ERC20("ERC4626Mock", "E4626M") ERC4626(IERC20(underlying)) {
+    )
+        ERC20("ERC4626Mock", "E4626M")
+        ERC4626(IERC20(underlying))
+        Ownable(msg.sender)
+    {
         stakingTotalAssets = 0;
     }
 
