@@ -27,7 +27,7 @@ contract ERC4626Mock is Ownable, ERC4626 {
     constructor(
         address underlying
     )
-        ERC20("ERC4626Mock", "E4626M")
+        ERC20("ggpVault", "ggGGP")
         ERC4626(IERC20(underlying))
         Ownable(msg.sender)
     {
