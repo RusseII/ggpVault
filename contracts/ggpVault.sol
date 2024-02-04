@@ -44,6 +44,15 @@ contract GGPVault is
     /// @notice Emitted when assets are deposited back from staking.
     event DepositedFromStaking(address indexed caller, uint256 amount);
 
+    // Modifier to restrict access to the owner or an approved node operator
+    modifier onlyOwnerOrApprovedNodeOperator() {
+        require(
+            hasRole(APPROVED_NODE_OPERATOR, _msgSender()) || owner() == _msgSender(),
+            "Caller is not the owner or an approved node operator"
+        );
+        _;
+    }
+
     /// @notice Initializes the contract with necessary setups for roles, ERC20, ERC4626, and storage.
     /// @param _underlying The address of the underlying asset for the ERC4626 vault.
     /// @param _storageContract The address of the GGP specific storage contract.
@@ -84,7 +93,7 @@ contract GGPVault is
 
     /// @notice Allows depositing assets back into the vault from staking activities.
     /// @param amount The amount of assets to deposit.
-    function depositFromStaking(uint256 amount) public {
+    function depositFromStaking(uint256 amount) external onlyOwnerOrApprovedNodeOperator {
         stakingTotalAssets = amount >= stakingTotalAssets ? 0 : stakingTotalAssets - amount;
         emit DepositedFromStaking(msg.sender, amount);
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
