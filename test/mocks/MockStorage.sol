@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /// @title The primary persistent storage for GoGoPool
 /// Based on RocketStorage by RocketPool
 
-contract Storage {
+contract MockStorage {
 	error InvalidGuardianConfirmation();
 	error InvalidOrOutdatedContract();
 	error MustBeGuardian();
@@ -12,7 +12,7 @@ contract Storage {
 
 	event GuardianChanged(address oldGuardian, address newGuardian);
 
-	// Storage maps
+	// MockStorage maps
 	mapping(bytes32 => address) private addressStorage;
 	mapping(bytes32 => bool) private booleanStorage;
 	mapping(bytes32 => bytes) private bytesStorage;
@@ -35,8 +35,8 @@ contract Storage {
 
 	/// @dev This contract will be deployed via create2 proxy, so msg.sender will not work.
 	constructor() {
-		emit GuardianChanged(address(0), tx.origin);
-		guardian = tx.origin;
+		emit GuardianChanged(address(0), msg.sender);
+		guardian = msg.sender;
 	}
 
 	/// @notice Initiates the transfer of guardianship to a new address

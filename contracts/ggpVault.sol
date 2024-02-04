@@ -18,16 +18,16 @@ interface IStorageContractGGP {
 
 contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
-    IStorageContractGGP public constant ggpStorage = IStorageContractGGP(0x1cEa17F9dE4De28FeB6A102988E12D4B90DfF1a9);
+    IStorageContractGGP public ggpStorage;
     uint256 public stakingTotalAssets;
     event WithdrawnForStaking(address indexed caller, uint256 assets);
     event DepositedFromStaking(address indexed caller, uint256 amount);
 
-	constructor() {
-		// The constructor is executed only when creating implementation contract
-		// so prevent it's reinitialization
-		_disableInitializers();
-	}
+	// constructor() {
+	// 	// The constructor is executed only when creating implementation contract
+	// 	// so prevent it's reinitialization
+	// 	_disableInitializers();
+	// }
 
 
    function stakeOnValidator(uint256 amount, address nodeOp) external onlyOwner {
@@ -51,12 +51,16 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable,
     }
 
     function initialize(
-        address underlying
+        address underlying, address storageContract
     ) external initializer {
         __ERC20_init("ggpVault", "ggGGP");
         __ERC4626_init(IERC20(underlying));
         __UUPSUpgradeable_init();
+         __Ownable_init(msg.sender);
          __Ownable2Step_init();
+        //  0x1cEa17F9dE4De28FeB6A102988E12D4B90DfF1a9 the storage contract
+        ggpStorage = IStorageContractGGP(storageContract);
+         // TODO do both of those ownables need called????????????????/
 
         // __ERC4626_init_unchained(IERC20(underlying));
         // which of the above should this be???? they use the unchained in their mock for some reason ?? https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/master/contracts/mocks/token/GGPVaultUpgradeable.sol
