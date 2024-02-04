@@ -3,7 +3,7 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import "erc4626-tests/ERC4626.test.sol";
 
-import {MockTokenGGP} from "../src/Mock/MockTokenGGP.sol";
+import {MockTokenGGP} from "./mocks/MockTokenGGP.sol";
 import {GGPVault} from "../src/ggpVault.sol";
 
 contract ERC4626StdTest is ERC4626Test {
