@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -15,7 +16,7 @@ interface IStorageContractGGP {
     function getAddress(bytes32 _id) external view returns (address);
 }
 
-contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable  {
+contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
     IStorageContractGGP public constant ggpStorage = IStorageContractGGP(0x1cEa17F9dE4De28FeB6A102988E12D4B90DfF1a9);
     uint256 public stakingTotalAssets;
@@ -51,11 +52,14 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable 
 
     function initialize(
         address underlying
-    ) public initializer {
+    ) external initializer {
+        __ERC20_init("ggpVault", "ggGGP");
         __ERC4626_init(IERC20(underlying));
+        __UUPSUpgradeable_init();
+         __Ownable2Step_init();
+
         // __ERC4626_init_unchained(IERC20(underlying));
         // which of the above should this be???? they use the unchained in their mock for some reason ?? https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/master/contracts/mocks/token/GGPVaultUpgradeable.sol
-        __ERC20_init("ggpVault", "ggGGP");
         stakingTotalAssets = 0;
     }
  
@@ -67,5 +71,8 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable 
     function totalAssets() public view override returns (uint256) {
         return stakingTotalAssets + getUnderlyingBalance();
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner() {}
+
 }
 
