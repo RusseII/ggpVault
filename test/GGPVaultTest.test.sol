@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import { GGPVault } from "../contracts/GGPVault.sol";
-import { MockTokenGGP } from "./mocks/MockTokenGGP.sol";
-import { MockStaking } from "./mocks/MockStaking.sol";
-import { MockStorage } from "./mocks/MockStorage.sol";
+import {GGPVault} from "../contracts/GGPVault.sol";
+import {MockTokenGGP} from "./mocks/MockTokenGGP.sol";
+import {MockStaking} from "./mocks/MockStaking.sol";
+import {MockStorage} from "./mocks/MockStorage.sol";
 
 interface IStorageContractGGP {
     function getAddress(bytes32 _id) external view returns (address);
 }
+
 contract GGPVaultTest is Test {
     GGPVault vault;
     MockTokenGGP ggpToken;
@@ -20,162 +20,178 @@ contract GGPVaultTest is Test {
     MockStorage mockStorage;
     address owner;
     address nodeOp1 = address(0x9);
+
     function setUp() public {
-    
         owner = address(this);
         ggpToken = new MockTokenGGP(address(this));
         mockStaking = new MockStaking(ggpToken);
         mockStorage = new MockStorage();
-        mockStorage.setAddress(keccak256(abi.encodePacked("contract.address", 'staking')), address(mockStaking));
-  
+        mockStorage.setAddress(keccak256(abi.encodePacked("contract.address", "staking")), address(mockStaking));
+
         vault = new GGPVault();
-        vault.initialize(address(ggpToken),address(mockStorage));
+        vault.initialize(address(ggpToken), address(mockStorage));
     }
 
-function testStakeOnValidator() public  {
-    uint256 amount = 1e18; // 1 GGP for simplicity
-    ggpToken.approve(address(vault), amount);
-    vault.deposit(amount, msg.sender);
-    vault.stakeOnValidator(amount, nodeOp1);
+    function testStakeOnValidator() public {
+        uint256 amount = 10e18; // 10 GGP for simplicity
+        ggpToken.approve(address(vault), amount);
 
-    assertEq(vault.stakingTotalAssets(), amount, "The staking total assets should be updated");
-    assertEq(vault.totalAssets(), amount, "The total assets should be equal to deposits");
+        vault.deposit(amount, msg.sender);
+        assertEq(vault.balanceOf(msg.sender), amount, "Depositor gets correct amount of shares");
 
-}
+        vault.stakeOnValidator(amount, nodeOp1);
 
-//   function testDepositFromStaking() public {
-//     uint256 stakeAmount = 1e18; // Assume already staked
-//     uint256 depositAmount = 1e18; // Deposit back into the vault
+        assertEq(vault.stakingTotalAssets(), amount, "The staking total assets should be updated");
+        assertEq(vault.totalAssets(), amount, "The total assets should be equal to deposits");
+    }
 
-//     // Simulate depositing from staking
-//     ggpToken.transfer(address(vault), depositAmount);
-//     vault.depositFromStaking(depositAmount);
+    // function testDepositFromStaking() public {
+    //     uint256 stakeAmount = 1e18; // Assume already staked
+    //     uint256 depositAmount = 1e18; // Deposit back into the vault
 
-//     // Check if the stakingTotalAssets is updated correctly
-//     uint256 expectedAssets = vault.stakingTotalAssets() - depositAmount;
-//     assertEq(vault.stakingTotalAssets(), expectedAssets, "The staking total assets should decrease");
+    //     // Simulate depositing from staking
+    //     ggpToken.transfer(address(vault), depositAmount);
+    //     vault.depositFromStaking(depositAmount);
 
-//     // Verify the vault's ggpToken balance is updated
-//     assertEq(ggpToken.balanceOf(address(vault)), depositAmount, "Vault balance should reflect the deposited amount");
-// }
+    //     console.log(vault.balanceOf(address(this)));
 
-// function testTotalAssetsCalculation() public {
-//     // Assume some assets are already staked and some are in the vault
-//     uint256 stakedAssets = 1e18; // Simulated staked amount
-//     uint256 vaultBalance = 1e18; // Directly in the vault
-//     ggpToken.transfer(address(vault), vaultBalance);
+    //     // Check if the stakingTotalAssets is updated correctly
+    //     uint256 expectedAssets = vault.stakingTotalAssets() - depositAmount;
+    //     assertEq(vault.stakingTotalAssets(), expectedAssets, "The staking total assets should decrease");
 
-//     // Manually adjust the stakingTotalAssets to simulate staking
-//     // This requires direct interaction or simulation due to access control
-//     // vault.stakingTotalAssets = stakedAssets; // Hypothetical direct interaction, not possible without additional setup or mocking
+    //     // Verify the vault's ggpToken balance is updated
+    //     assertEq(ggpToken.balanceOf(address(vault)), depositAmount, "Vault balance should reflect the deposited amount");
+    // }
 
-//     // The totalAssets should reflect both the staked assets and the vault balance
-//     uint256 expectedTotal = stakedAssets + vaultBalance;
-//     assertEq(vault.totalAssets(), expectedTotal, "Total assets should include both staked and vault balance");
-// }
+    function testTotalAssetsCalculation() public {
+        uint256 assetsToDeposit = 1000e18; // Simulated staked amount
+        ggpToken.approve(address(vault), type(uint256).max);
+        assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
+        assertEq(vault.totalAssets(), 0, "The total assets should be equal to deposits");
+        vault.deposit(assetsToDeposit, msg.sender);
+        assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
+        assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
 
-// function testOwnershipTransfer() public {
-//     address newOwner = address(0x1);
+        vault.stakeOnValidator(assetsToDeposit / 2, nodeOp1);
+        assertEq(vault.stakingTotalAssets(), assetsToDeposit / 2, "The staking total assets should be updated");
+        assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
 
-//     // Initiate ownership transfer by the current owner
-//     vm.prank(owner);
-//     vault.transferOwnership(newOwner);
+        vault.depositFromStaking(assetsToDeposit / 2);
+        assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
+        assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
 
-//     // Attempt to accept the ownership transfer by the new owner
-//     vm.startPrank(newOwner);
-//     vault.acceptOwnership();
-//     vm.stopPrank();
+        uint256 rewards = 100e18;
+        vault.depositFromStaking(rewards);
+        assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
+        assertEq(vault.totalAssets(), assetsToDeposit + rewards, "The total assets should be equal to deposits");
 
-//     // Verify the ownership has been transferred
-//     assertEq(vault.owner(), newOwner, "Ownership was not transferred to the new owner");
+        // Manually adjust the stakingTotalAssets to simulate staking
+        // This requires direct interaction or simulation due to access control
+        // vault.stakingTotalAssets = stakedAssets; // Hypothetical direct interaction, not possible without additional setup or mocking
 
-//     // Ensure that the old owner no longer has access
-//     vm.expectRevert("Ownable: caller is not the owner");
-//     vm.prank(owner);
-//     vault.stakeOnValidator(1e18, owner);
-// }
+        // The totalAssets should reflect both the staked assets and the vault balance
+    }
 
-// function testPreventNonOwnerFromInitiatingTransfer() public {
-//     address nonOwner = address(0x2);
-//     address newOwner = address(0x3);
+    // function testOwnershipTransfer() public {
+    //     address newOwner = address(0x1);
 
-//     vm.prank(nonOwner);
-//     vm.expectRevert("Ownable: caller is not the owner");
-//     vault.transferOwnership(newOwner);
-// }
+    //     // Initiate ownership transfer by the current owner
+    //     vm.prank(owner);
+    //     vault.transferOwnership(newOwner);
 
-// function testStakeOnValidatorAccessControl() public {
-//     address nonOwner = address(0x1);
-//     uint256 amount = 1e18; // 1 ggpToken for simplicity
-//     address nodeOp = address(this); // Just an example address
+    //     // Attempt to accept the ownership transfer by the new owner
+    //     vm.startPrank(newOwner);
+    //     vault.acceptOwnership();
+    //     vm.stopPrank();
 
-//     // Non-owner should not be able to call
-//     vm.prank(nonOwner);
-//     vm.expectRevert("Ownable: caller is not the owner");
-//     vault.stakeOnValidator(amount, nodeOp);
+    //     // Verify the ownership has been transferred
+    //     assertEq(vault.owner(), newOwner, "Ownership was not transferred to the new owner");
 
-//     // Owner should be able to call
-//     vm.prank(owner);
-//     // Assuming `stakeOnValidator` does not emit a specific event or have easily checkable effects,
-//     // otherwise, check for those effects here.
-//     vault.stakeOnValidator(amount, nodeOp);
-// }
+    //     // Ensure that the old owner no longer has access
+    //     vm.expectRevert("Ownable: caller is not the owner");
+    //     vm.prank(owner);
+    //     vault.stakeOnValidator(1e18, owner);
+    // }
 
-// // Example of testing an upgrade process, heavily dependent on your setup
-// function testUpgradeProcess() public {
-//     address newImplementation = address(new GGPVault()); // Assuming you have a new version ready
+    // function testPreventNonOwnerFromInitiatingTransfer() public {
+    //     address nonOwner = address(0x2);
+    //     address newOwner = address(0x3);
 
-//     // Simulate upgrade process initiated by the owner
-//     vm.prank(owner);
-//     // Replace the following with your actual upgrade initiation call, e.g.,
-//     // proxy.upgradeTo(newImplementation);
-    
-//     // Post-upgrade checks to ensure upgrade was successful, e.g.,
-//     // assertEq(proxy.implementation(), newImplementation, "Upgrade did not set the new implementation correctly");
-// }
+    //     vm.prank(nonOwner);
+    //     vm.expectRevert("Ownable: caller is not the owner");
+    //     vault.transferOwnership(newOwner);
+    // }
 
-// // function testTransferOwnershipAccessControl() public {
-// //     address nonOwner = address(0x1);
-// //     address newOwner = address(0x2);
+    // function testStakeOnValidatorAccessControl() public {
+    //     address nonOwner = address(0x1);
+    //     uint256 amount = 1e18; // 1 ggpToken for simplicity
+    //     address nodeOp = address(this); // Just an example address
 
-// //     // Non-owner should not be able to call
-// //     vm.prank(nonOwner);
-// //     vm.expectRevert("Ownable: caller is not the owner");
-// //     vault.transferOwnership(newOwner);
+    //     // Non-owner should not be able to call
+    //     vm.prank(nonOwner);
+    //     vm.expectRevert("Ownable: caller is not the owner");
+    //     vault.stakeOnValidator(amount, nodeOp);
 
-// //     // Owner should be able to initiate transfer
-// //     vm.prank(owner);
-// //     vault.transferOwnership(newOwner);
-// //     // assertEq(vault.newOwner(), newOwner, "Transfer ownership did not set the new owner correctly");
-// // }
+    //     // Owner should be able to call
+    //     vm.prank(owner);
+    //     // Assuming `stakeOnValidator` does not emit a specific event or have easily checkable effects,
+    //     // otherwise, check for those effects here.
+    //     vault.stakeOnValidator(amount, nodeOp);
+    // }
 
-// function testAcceptOwnershipAccessControl() public {
-//     address newOwner = address(0x2);
+    // // Example of testing an upgrade process, heavily dependent on your setup
+    // function testUpgradeProcess() public {
+    //     address newImplementation = address(new GGPVault()); // Assuming you have a new version ready
 
-//     // Initiate ownership transfer
-//     vm.prank(owner);
-//     vault.transferOwnership(newOwner);
+    //     // Simulate upgrade process initiated by the owner
+    //     vm.prank(owner);
+    //     // Replace the following with your actual upgrade initiation call, e.g.,
+    //     // proxy.upgradeTo(newImplementation);
 
-//     // Non-proposed owner should not be able to accept
-//     address nonProposedOwner = address(0x3);
-//     vm.prank(nonProposedOwner);
-//     vm.expectRevert("Ownable: caller is not the new owner");
-//     vault.acceptOwnership();
+    //     // Post-upgrade checks to ensure upgrade was successful, e.g.,
+    //     // assertEq(proxy.implementation(), newImplementation, "Upgrade did not set the new implementation correctly");
+    // }
 
-//     // New owner accepts the transfer
-//     vm.prank(newOwner);
-//     vault.acceptOwnership();
-//     assertEq(vault.owner(), newOwner, "Ownership was not transferred to the new owner");
-// }
+    // // function testTransferOwnershipAccessControl() public {
+    // //     address nonOwner = address(0x1);
+    // //     address newOwner = address(0x2);
 
-// function testCancelOwnershipTransferAccessControl() public {
-//     address newOwner = address(0x2);
+    // //     // Non-owner should not be able to call
+    // //     vm.prank(nonOwner);
+    // //     vm.expectRevert("Ownable: caller is not the owner");
+    // //     vault.transferOwnership(newOwner);
 
-//     // Initiate and cancel ownership transfer by the owner
-//     vm.prank(owner);
-//     vault.transferOwnership(newOwner);
-//     // Assuming there's a way to verify cancellation, e.g., `newOwner()` is reset
-//     // assertEq(vault.newOwner(), address(0), "Ownership transfer was not canceled correctly");
-// }
+    // //     // Owner should be able to initiate transfer
+    // //     vm.prank(owner);
+    // //     vault.transferOwnership(newOwner);
+    // //     // assertEq(vault.newOwner(), newOwner, "Transfer ownership did not set the new owner correctly");
+    // // }
 
+    // function testAcceptOwnershipAccessControl() public {
+    //     address newOwner = address(0x2);
+
+    //     // Initiate ownership transfer
+    //     vm.prank(owner);
+    //     vault.transferOwnership(newOwner);
+
+    //     // Non-proposed owner should not be able to accept
+    //     address nonProposedOwner = address(0x3);
+    //     vm.prank(nonProposedOwner);
+    //     vm.expectRevert("Ownable: caller is not the new owner");
+    //     vault.acceptOwnership();
+
+    //     // New owner accepts the transfer
+    //     vm.prank(newOwner);
+    //     vault.acceptOwnership();
+    //     assertEq(vault.owner(), newOwner, "Ownership was not transferred to the new owner");
+    // }
+
+    // function testCancelOwnershipTransferAccessControl() public {
+    //     address newOwner = address(0x2);
+
+    //     // Initiate and cancel ownership transfer by the owner
+    //     vm.prank(owner);
+    //     vault.transferOwnership(newOwner);
+    //     // Assuming there's a way to verify cancellation, e.g., `newOwner()` is reset
+    //     // assertEq(vault.newOwner(), address(0), "Ownership transfer was not canceled correctly");
 }
