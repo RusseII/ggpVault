@@ -29,7 +29,8 @@ contract GGPVaultTest is Test {
         mockStorage.setAddress(keccak256(abi.encodePacked("contract.address", "staking")), address(mockStaking));
 
         vault = new GGPVault();
-        vault.initialize(address(ggpToken), address(mockStorage));
+        vault.initialize(address(ggpToken), address(mockStorage), address(this));
+        vault.grantRole(vault.APPROVED_NODE_OPERATOR(), nodeOp1);
     }
 
     function testStakeOnValidator() public {
@@ -38,7 +39,6 @@ contract GGPVaultTest is Test {
 
         vault.deposit(amount, msg.sender);
         assertEq(vault.balanceOf(msg.sender), amount, "Depositor gets correct amount of shares");
-
         vault.stakeOnValidator(amount, nodeOp1);
 
         assertEq(vault.stakingTotalAssets(), amount, "The staking total assets should be updated");

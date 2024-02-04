@@ -1,38 +1,56 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "./interfaces/GGPInterfaces.sol"; // Assuming these are external interfaces
 
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-
-interface IStakingContractGGP {
-    function stakeGGPOnBehalfOf(address stakerAddr, uint256 amount) external;
-}
-
-interface IStorageContractGGP {
-    function getAddress(bytes32 _id) external view returns (address);
-}
-
-contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable, UUPSUpgradeable {
+contract GGPVault is
+    Initializable,
+    Ownable2StepUpgradeable,
+    ERC4626Upgradeable,
+    UUPSUpgradeable,
+    AccessControlUpgradeable
+{
     using SafeERC20 for IERC20;
+
+    bytes32 public constant APPROVED_NODE_OPERATOR = keccak256("APPROVED_NODE_OPERATOR");
 
     IStorageContractGGP public ggpStorage;
     uint256 public stakingTotalAssets;
+    uint256 public assetCap;
 
+    event AssetCapUpdated(uint256 newCap);
     event WithdrawnForStaking(address indexed caller, uint256 assets);
     event DepositedFromStaking(address indexed caller, uint256 amount);
 
-    // constructor() {
-    // 	// The constructor is executed only when creating implementation contract
-    // 	// so prevent it's reinitialization
-    // 	_disableInitializers();
-    // }
+    function initialize(address _underlying, address _storageContract, address _initialOwner) external initializer {
+        __ERC20_init("ggpVault", "ggGGP");
+        __ERC4626_init(IERC20(_underlying));
+        __UUPSUpgradeable_init();
+        __Ownable2Step_init();
+        __Ownable_init(_initialOwner);
+        __AccessControl_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _initialOwner);
+
+        ggpStorage = IStorageContractGGP(_storageContract);
+        stakingTotalAssets = 0;
+        assetCap = 10000e18;
+    }
+
+    function setAssetCap(uint256 _newCap) external onlyOwner {
+        assetCap = _newCap;
+        emit AssetCapUpdated(_newCap);
+    }
 
     function stakeOnValidator(uint256 amount, address nodeOp) external onlyOwner {
+        _checkRole(APPROVED_NODE_OPERATOR, nodeOp);
         stakingTotalAssets += amount;
         IStakingContractGGP stakingContract = getStakingContractAddress();
         IERC20(asset()).approve(address(stakingContract), amount);
@@ -41,42 +59,27 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable,
     }
 
     function depositFromStaking(uint256 amount) public {
-        if (amount >= stakingTotalAssets) {
-            stakingTotalAssets = 0;
-        } else {
-            stakingTotalAssets -= amount;
-        }
+        stakingTotalAssets = amount >= stakingTotalAssets ? 0 : stakingTotalAssets - amount;
         emit DepositedFromStaking(msg.sender, amount);
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function getStakingContractAddress() public view returns (IStakingContractGGP) {
         bytes32 args = keccak256(abi.encodePacked("contract.address", "staking"));
-        address stakingAdress = ggpStorage.getAddress(args);
-        return IStakingContractGGP(stakingAdress);
-    }
-
-    function initialize(address underlying, address storageContract) external initializer {
-        __ERC20_init("ggpVault", "ggGGP");
-        __ERC4626_init(IERC20(underlying));
-        __UUPSUpgradeable_init();
-        __Ownable_init(msg.sender);
-        __Ownable2Step_init();
-        //  0x1cEa17F9dE4De28FeB6A102988E12D4B90DfF1a9 the storage contract
-        ggpStorage = IStorageContractGGP(storageContract);
-        // TODO do both of those ownables need called????????????????/
-
-        // __ERC4626_init_unchained(IERC20(underlying));
-        // which of the above should this be???? they use the unchained in their mock for some reason ?? https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/master/contracts/mocks/token/GGPVaultUpgradeable.sol
-        stakingTotalAssets = 0;
-    }
-
-    function getUnderlyingBalance() public view returns (uint256) {
-        return IERC20(asset()).balanceOf(address(this));
+        return IStakingContractGGP(ggpStorage.getAddress(args));
     }
 
     function totalAssets() public view override returns (uint256) {
         return stakingTotalAssets + getUnderlyingBalance();
+    }
+
+    function maxDeposit(address receiver) public view override returns (uint256) {
+        uint256 total = totalAssets();
+        return assetCap > total ? assetCap - total : 0;
+    }
+
+    function getUnderlyingBalance() public view returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
