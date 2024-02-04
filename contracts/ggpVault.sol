@@ -62,7 +62,9 @@ contract GGPVault is
         __ERC4626_init(IERC20(_underlying));
         __UUPSUpgradeable_init();
         __Ownable2Step_init();
-        __Ownable_init(_initialOwner);
+        // __Ownable_init(_initialOwner); // TODO which??
+        _transferOwnership(_initialOwner);
+
         __AccessControl_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _initialOwner);
