@@ -32,6 +32,7 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable 
    function stakeOnValidator(uint256 amount, address nodeOp) external onlyOwner {
         stakingTotalAssets += amount;
         IStakingContractGGP stakingContract = getStakingContractAddress();
+        IERC20(asset()).approve(address(stakingContract), amount);
         stakingContract.stakeGGPOnBehalfOf(nodeOp, amount);
         emit WithdrawnForStaking(nodeOp, amount);
     }
