@@ -8,17 +8,16 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-interface Staking {
+interface IStakingContractGGP {
 	function stakeGGPOnBehalfOf(address stakerAddr, uint256 amount) external;
 }
-interface IStorageContract {
+interface IStorageContractGGP {
     function getAddress(bytes32 _id) external view returns (address);
 }
 
 contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable  {
-    IStorageContract public constant ggpStorage = IStorageContract(0x1cEa17F9dE4De28FeB6A102988E12D4B90DfF1a9);
-
     using SafeERC20 for IERC20;
+    IStorageContractGGP public constant ggpStorage = IStorageContractGGP(0x1cEa17F9dE4De28FeB6A102988E12D4B90DfF1a9);
     uint256 public stakingTotalAssets;
     event WithdrawnForStaking(address indexed caller, uint256 assets);
     event DepositedFromStaking(address indexed caller, uint256 amount);
@@ -30,17 +29,11 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable 
 	}
 
 
-    // function withdrawForStaking(uint256 amount) external onlyOwner {
-    //     stakingTotalAssets += amount;
-    //     emit WithdrawnForStaking(msg.sender, amount);
-    //     IERC20(asset()).safeTransfer(msg.sender, amount);
-    // }
-
    function stakeOnValidator(uint256 amount, address nodeOp) external onlyOwner {
-    stakingTotalAssets += amount;
-    Staking stakingContract = Staking(getStakingContractAddress());
-    stakingContract.stakeGGPOnBehalfOf(nodeOp, amount);
-    emit WithdrawnForStaking(nodeOp, amount);
+        stakingTotalAssets += amount;
+        IStakingContractGGP stakingContract = getStakingContractAddress();
+        stakingContract.stakeGGPOnBehalfOf(nodeOp, amount);
+        emit WithdrawnForStaking(nodeOp, amount);
     }
 
     function depositFromStaking(uint256 amount) public {
@@ -49,9 +42,10 @@ contract GGPVault is Initializable, Ownable2StepUpgradeable, ERC4626Upgradeable 
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
     }
 
-    function getStakingContractAddress() public view returns (address) {
+    function getStakingContractAddress() public view returns (IStakingContractGGP) {
         bytes32 args = keccak256(abi.encodePacked("contract.address", 'staking'));
-        return ggpStorage.getAddress(args);
+        address stakingAdress = ggpStorage.getAddress(args);
+        return IStakingContractGGP(stakingAdress);
     }
 
     function initialize(
