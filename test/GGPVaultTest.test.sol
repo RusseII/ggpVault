@@ -9,10 +9,6 @@ import {MockTokenGGP} from "./mocks/MockTokenGGP.sol";
 import {MockStaking} from "./mocks/MockStaking.sol";
 import {MockStorage} from "./mocks/MockStorage.sol";
 
-interface IStorageContractGGP {
-    function getAddress(bytes32 _id) external view returns (address);
-}
-
 contract GGPVaultTest is Test {
     GGPVault vault;
     MockTokenGGP ggpToken;
@@ -20,6 +16,13 @@ contract GGPVaultTest is Test {
     MockStorage mockStorage;
     address owner;
     address nodeOp1 = address(0x9);
+
+    event AssetCapUpdated(uint256 newCap);
+    event DepositedFromStaking(address indexed caller, uint256 amount);
+
+    error ERC4626ExceededMaxDeposit(address receiver, uint256 assets, uint256 max);
+
+    error OwnableUnauthorizedAccount(address account);
 
     function setUp() public {
         owner = address(this);
@@ -31,11 +34,16 @@ contract GGPVaultTest is Test {
         vault = new GGPVault();
         vault.initialize(address(ggpToken), address(mockStorage), address(this));
         vault.grantRole(vault.APPROVED_NODE_OPERATOR(), nodeOp1);
+        ggpToken.approve(address(vault), type(uint256).max);
+
+        ggpToken.transfer(nodeOp1, 100000e18);
+        ggpToken.approve(address(vault), type(uint256).max);
+        vm.prank(nodeOp1);
+        ggpToken.approve(address(vault), type(uint256).max);
     }
 
     function testStakeOnValidator() public {
         uint256 amount = 10e18; // 10 GGP for simplicity
-        ggpToken.approve(address(vault), amount);
 
         vault.deposit(amount, msg.sender);
         assertEq(vault.balanceOf(msg.sender), amount, "Depositor gets correct amount of shares");
@@ -45,27 +53,8 @@ contract GGPVaultTest is Test {
         assertEq(vault.totalAssets(), amount, "The total assets should be equal to deposits");
     }
 
-    // function testDepositFromStaking() public {
-    //     uint256 stakeAmount = 1e18; // Assume already staked
-    //     uint256 depositAmount = 1e18; // Deposit back into the vault
-
-    //     // Simulate depositing from staking
-    //     ggpToken.transfer(address(vault), depositAmount);
-    //     vault.depositFromStaking(depositAmount);
-
-    //     console.log(vault.balanceOf(address(this)));
-
-    //     // Check if the stakingTotalAssets is updated correctly
-    //     uint256 expectedAssets = vault.stakingTotalAssets() - depositAmount;
-    //     assertEq(vault.stakingTotalAssets(), expectedAssets, "The staking total assets should decrease");
-
-    //     // Verify the vault's ggpToken balance is updated
-    //     assertEq(ggpToken.balanceOf(address(vault)), depositAmount, "Vault balance should reflect the deposited amount");
-    // }
-
     function testTotalAssetsCalculation() public {
         uint256 assetsToDeposit = 1000e18; // Simulated staked amount
-        ggpToken.approve(address(vault), type(uint256).max);
         assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), 0, "The total assets should be equal to deposits");
         vault.deposit(assetsToDeposit, msg.sender);
@@ -84,114 +73,185 @@ contract GGPVaultTest is Test {
         vault.depositFromStaking(rewards);
         assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), assetsToDeposit + rewards, "The total assets should be equal to deposits");
-
-        // Manually adjust the stakingTotalAssets to simulate staking
-        // This requires direct interaction or simulation due to access control
-        // vault.stakingTotalAssets = stakedAssets; // Hypothetical direct interaction, not possible without additional setup or mocking
-
-        // The totalAssets should reflect both the staked assets and the vault balance
     }
 
-    // function testOwnershipTransfer() public {
-    //     address newOwner = address(0x1);
+    function testInitialization() public {
+        assertEq(vault.ggpStorage(), address(mockStorage), "GGP Storage should be correctly set");
+        assertEq(vault.stakingTotalAssets(), 0, "Staking total assets should initially be 0");
+        assertEq(vault.assetCap(), 33000e18, "Asset cap should be correctly set to 33000e18");
 
-    //     // Initiate ownership transfer by the current owner
-    //     vm.prank(owner);
-    //     vault.transferOwnership(newOwner);
+        // Verify the initial owner is correctly set
+        assertEq(vault.owner(), owner, "The initial owner should be correctly set");
 
-    //     // Attempt to accept the ownership transfer by the new owner
-    //     vm.startPrank(newOwner);
-    //     vault.acceptOwnership();
-    //     vm.stopPrank();
+        // Check that the initial owner has the DEFAULT_ADMIN_ROLE
+        bytes32 defaultAdminRole = vault.DEFAULT_ADMIN_ROLE();
+        assertTrue(vault.hasRole(defaultAdminRole, owner), "The initial owner should have the DEFAULT_ADMIN_ROLE");
 
-    //     // Verify the ownership has been transferred
-    //     assertEq(vault.owner(), newOwner, "Ownership was not transferred to the new owner");
+        // Optionally, verify the token and staking contract addresses
+        assertEq(address(ggpToken), vault.asset(), "The underlying token address should be correctly set");
+        assertEq(
+            address(mockStaking),
+            address(vault.getStakingContractAddress()),
+            "The staking contract address should be correctly set"
+        );
+    }
 
-    //     // Ensure that the old owner no longer has access
-    //     vm.expectRevert("Ownable: caller is not the owner");
-    //     vm.prank(owner);
-    //     vault.stakeOnValidator(1e18, owner);
-    // }
+    function testSetAssetCapSuccess() public {
+        uint256 newAssetCap = 20000e18; // Define a new asset cap different from the initial one
 
-    // function testPreventNonOwnerFromInitiatingTransfer() public {
-    //     address nonOwner = address(0x2);
-    //     address newOwner = address(0x3);
+        // Expect the AssetCapUpdated event to be emitted with the new asset cap value
+        vm.expectEmit(true, true, true, true);
+        emit AssetCapUpdated(newAssetCap);
 
-    //     vm.prank(nonOwner);
-    //     vm.expectRevert("Ownable: caller is not the owner");
-    //     vault.transferOwnership(newOwner);
-    // }
+        // Attempt to set the new asset cap as the owner
+        vault.setAssetCap(newAssetCap);
+        // Verify the asset cap was successfully updated
+        assertEq(vault.assetCap(), newAssetCap, "Asset cap should be updated to the new value");
+    }
 
-    // function testStakeOnValidatorAccessControl() public {
-    //     address nonOwner = address(0x1);
-    //     uint256 amount = 1e18; // 1 ggpToken for simplicity
-    //     address nodeOp = address(this); // Just an example address
+    function testSetAssetCapFailureNonOwner() public {
+        uint256 newAssetCap = 20000e18; // Define a new asset cap
+        address nonOwner = address(0x1); // Assume this address is not the owner
 
-    //     // Non-owner should not be able to call
-    //     vm.prank(nonOwner);
-    //     vm.expectRevert("Ownable: caller is not the owner");
-    //     vault.stakeOnValidator(amount, nodeOp);
+        // Set the next caller to be a non-owner
+        vm.prank(nonOwner);
 
-    //     // Owner should be able to call
-    //     vm.prank(owner);
-    //     // Assuming `stakeOnValidator` does not emit a specific event or have easily checkable effects,
-    //     // otherwise, check for those effects here.
-    //     vault.stakeOnValidator(amount, nodeOp);
-    // }
+        // Attempt to set the new asset cap as a non-owner and expect it to revert
+        // Adjust the revert message to match the actual error message in your contract
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, nonOwner));
+        vault.setAssetCap(newAssetCap);
+    }
 
-    // // Example of testing an upgrade process, heavily dependent on your setup
-    // function testUpgradeProcess() public {
-    //     address newImplementation = address(new GGPVault()); // Assuming you have a new version ready
+    function testDepositFromStakingSuccess() public {
+        uint256 depositAmount = 100e18; // Example amount
 
-    //     // Simulate upgrade process initiated by the owner
-    //     vm.prank(owner);
-    //     // Replace the following with your actual upgrade initiation call, e.g.,
-    //     // proxy.upgradeTo(newImplementation);
+        // Assuming you have a setup function that deploys your contract and sets up initial conditions
 
-    //     // Post-upgrade checks to ensure upgrade was successful, e.g.,
-    //     // assertEq(proxy.implementation(), newImplementation, "Upgrade did not set the new implementation correctly");
-    // }
+        // Mock the token transfer to the contract here if necessary
 
-    // // function testTransferOwnershipAccessControl() public {
-    // //     address nonOwner = address(0x1);
-    // //     address newOwner = address(0x2);
+        // First, test as the owner
+        vm.expectEmit(true, true, true, true);
+        emit DepositedFromStaking(address(this), depositAmount);
+        vault.depositFromStaking(depositAmount);
+        assertEq(vault.stakingTotalAssets(), 0, "stakingTotalAssets should be updated");
+        assertEq(vault.totalAssets(), depositAmount, "stakingTotalAssets should be updated for node operator");
 
-    // //     // Non-owner should not be able to call
-    // //     vm.prank(nonOwner);
-    // //     vm.expectRevert("Ownable: caller is not the owner");
-    // //     vault.transferOwnership(newOwner);
+        // Now, test as an approved node operator
+        address approvedNodeOperator = nodeOp1; // Example address
+        vault.grantRole(vault.APPROVED_NODE_OPERATOR(), approvedNodeOperator); // Grant role if not already done in setUp
 
-    // //     // Owner should be able to initiate transfer
-    // //     vm.prank(owner);
-    // //     vault.transferOwnership(newOwner);
-    // //     // assertEq(vault.newOwner(), newOwner, "Transfer ownership did not set the new owner correctly");
-    // // }
+        vm.startPrank(approvedNodeOperator);
+        vm.expectEmit(true, true, true, true);
+        emit DepositedFromStaking(approvedNodeOperator, depositAmount);
+        vault.depositFromStaking(depositAmount);
+        // Assuming stakingTotalAssets accumulates, adjust the expected value accordingly
+        assertEq(vault.stakingTotalAssets(), 0, "stakingTotalAssets should be updated for node operator");
+        assertEq(vault.totalAssets(), depositAmount * 2, "stakingTotalAssets should be updated for node operator");
 
-    // function testAcceptOwnershipAccessControl() public {
-    //     address newOwner = address(0x2);
+        vm.stopPrank();
+    }
 
-    //     // Initiate ownership transfer
-    //     vm.prank(owner);
-    //     vault.transferOwnership(newOwner);
+    function testDepositFromStakingFailureUnauthorized() public {
+        uint256 depositAmount = 100e18; // Example amount
+        address unauthorized = address(0x2); // Example unauthorized address
 
-    //     // Non-proposed owner should not be able to accept
-    //     address nonProposedOwner = address(0x3);
-    //     vm.prank(nonProposedOwner);
-    //     vm.expectRevert("Ownable: caller is not the new owner");
-    //     vault.acceptOwnership();
+        vm.startPrank(unauthorized);
+        vm.expectRevert("Caller is not the owner or an approved node operator"); // Adjust based on your actual revert message
+        vault.depositFromStaking(depositAmount);
+        vm.stopPrank();
+    }
 
-    //     // New owner accepts the transfer
-    //     vm.prank(newOwner);
-    //     vault.acceptOwnership();
-    //     assertEq(vault.owner(), newOwner, "Ownership was not transferred to the new owner");
-    // }
+    function testMaxDepositUnderNormalConditions() public {
+        uint256 assetCap = 33000e18; // Set the asset cap to 33,000 tokens for this test
+        uint256 depositedAssets = 10000e18; // Simulate depositing 10,000 tokens
+        vault.setAssetCap(assetCap);
+        vault.deposit(depositedAssets, address(this)); // Assume deposit function updates total assets correctly
 
-    // function testCancelOwnershipTransferAccessControl() public {
-    //     address newOwner = address(0x2);
+        uint256 expectedMaxDeposit = assetCap - depositedAssets;
+        assertEq(
+            vault.maxDeposit(address(this)),
+            expectedMaxDeposit,
+            "Max deposit should match the expected value under normal conditions"
+        );
+    }
 
-    //     // Initiate and cancel ownership transfer by the owner
-    //     vm.prank(owner);
-    //     vault.transferOwnership(newOwner);
-    //     // Assuming there's a way to verify cancellation, e.g., `newOwner()` is reset
-    //     // assertEq(vault.newOwner(), address(0), "Ownership transfer was not canceled correctly");
+    function testMaxDepositWhenVaultIsFull() public {
+        uint256 assetCap = 33000e18; // Asset cap is 33,000 tokens
+        vault.setAssetCap(assetCap);
+        vault.deposit(assetCap, address(this)); // Assume the vault is now full
+
+        uint256 expectedMaxDeposit = 0;
+        assertEq(vault.maxDeposit(address(this)), expectedMaxDeposit, "Max deposit should be 0 when the vault is full");
+    }
+
+    function testMaxDepositExceedsAssetCap() public {
+        uint256 assetCap = 33000e18; // Asset cap is 33,000 tokens
+        uint256 depositedAssets = 32000e18; // Simulate depositing 32,000 tokens, close to the cap
+        vault.setAssetCap(assetCap);
+        vault.deposit(depositedAssets, address(this)); // Assume deposit function updates total assets correctly
+
+        uint256 expectedMaxDeposit = assetCap - depositedAssets;
+        assertEq(
+            vault.maxDeposit(address(this)), expectedMaxDeposit, "Max deposit should not allow exceeding the asset cap"
+        );
+    }
+
+    function testMaxDepositWithZeroAssetCap() public {
+        uint256 assetCap = 0; // Set the asset cap to 0
+        vault.setAssetCap(assetCap);
+
+        uint256 expectedMaxDeposit = 0;
+        assertEq(vault.maxDeposit(address(this)), expectedMaxDeposit, "Max deposit should be 0 with a zero asset cap");
+    }
+
+    function testMaxDepositWithNoAssetsInVault() public {
+        uint256 assetCap = 33000e18; // Set a non-zero asset cap
+        vault.setAssetCap(assetCap);
+
+        uint256 expectedMaxDeposit = assetCap; // With no assets in vault, max deposit should equal the asset cap
+        assertEq(
+            vault.maxDeposit(address(this)),
+            expectedMaxDeposit,
+            "Max deposit should equal the asset cap with no assets in vault"
+        );
+    }
+
+    function testMaxDepositAfterWithdrawals() public {
+        uint256 assetCap = 33000e18;
+        uint256 initialDeposit = 20000e18;
+        uint256 withdrawalAmount = 5000e18; // Simulate a withdrawal reducing the total assets
+        vault.setAssetCap(assetCap);
+        vault.deposit(initialDeposit, address(this)); // Assume deposit function updates total assets correctly
+        vault.withdraw(withdrawalAmount, address(this), address(this)); // Assume withdrawal function updates total assets correctly
+
+        uint256 expectedMaxDeposit = assetCap - (initialDeposit - withdrawalAmount);
+        assertEq(
+            vault.maxDeposit(address(this)),
+            expectedMaxDeposit,
+            "Max deposit should be adjusted correctly after withdrawals"
+        );
+
+        uint256 oneMoreThanMaxDeposit = vault.maxDeposit(address(this)) + 1;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC4626ExceededMaxDeposit.selector, address(this), oneMoreThanMaxDeposit, expectedMaxDeposit
+            )
+        );
+
+        vault.deposit(oneMoreThanMaxDeposit, address(this)); // Assume deposit function updates total assets correctly
+    }
+
+    function testMaxDepositWithChangingAssetCap() public {
+        uint256 initialAssetCap = 33000e18;
+        uint256 newAssetCap = 50000e18; // Increase the asset cap
+        uint256 depositedAssets = 10000e18;
+        vault.setAssetCap(initialAssetCap);
+        vault.deposit(depositedAssets, address(this)); // Assume deposit function updates total assets correctly
+
+        // Increase the asset cap
+        vault.setAssetCap(newAssetCap);
+
+        uint256 expectedMaxDeposit = newAssetCap - depositedAssets;
+        assertEq(vault.maxDeposit(address(this)), expectedMaxDeposit, "Max deposit should reflect the new asset cap");
+    }
 }

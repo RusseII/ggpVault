@@ -27,7 +27,7 @@ contract GGPVault is
     bytes32 public constant APPROVED_NODE_OPERATOR = keccak256("APPROVED_NODE_OPERATOR");
 
     /// @notice Reference to the storage contract for GGP specific data.
-    IStorageContractGGP public ggpStorage;
+    address public ggpStorage;
 
     /// @notice Total assets currently staked through the vault.
     uint256 public stakingTotalAssets;
@@ -69,9 +69,9 @@ contract GGPVault is
 
         _grantRole(DEFAULT_ADMIN_ROLE, _initialOwner);
 
-        ggpStorage = IStorageContractGGP(_storageContract);
+        ggpStorage = (_storageContract);
         stakingTotalAssets = 0;
-        assetCap = 10000e18;
+        assetCap = 33000e18;
     }
 
     /// @notice Sets a new cap for the total assets the vault can manage.
@@ -105,7 +105,8 @@ contract GGPVault is
     /// @return The address of the staking contract as IStakingContractGGP.
     function getStakingContractAddress() public view returns (IStakingContractGGP) {
         bytes32 args = keccak256(abi.encodePacked("contract.address", "staking"));
-        return IStakingContractGGP(ggpStorage.getAddress(args));
+        IStorageContractGGP storageContract = IStorageContractGGP(ggpStorage);
+        return IStakingContractGGP(storageContract.getAddress(args));
     }
 
     /// @notice Calculates the total assets managed by the vault including staked and unstaked assets.
@@ -115,9 +116,12 @@ contract GGPVault is
     }
 
     /// @notice Determines the maximum amount that can be deposited for a given receiver, considering the asset cap.
-    /// @param receiver The address of the potential receiver of the deposit.
+    // / @param _receiver The address of the potential receiver of the deposit.
     /// @return The maximum amount that can be deposited.
-    function maxDeposit(address receiver) public view override returns (uint256) {
+    function maxDeposit(address _receiver) public view override returns (uint256) {
+        if (false) {
+            _receiver;
+        }
         uint256 total = totalAssets();
         return assetCap > total ? assetCap - total : 0;
     }
