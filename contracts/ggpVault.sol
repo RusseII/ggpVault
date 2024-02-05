@@ -87,7 +87,7 @@ contract GGPVault is
     function stakeOnValidator(uint256 amount, address nodeOp) external onlyOwner {
         _checkRole(APPROVED_NODE_OPERATOR, nodeOp);
         stakingTotalAssets += amount;
-        IStakingContractGGP stakingContract = getStakingContractAddress();
+        IStakingContractGGP stakingContract = IStakingContractGGP(getStakingContractAddress());
         IERC20(asset()).approve(address(stakingContract), amount);
         stakingContract.stakeGGPOnBehalfOf(nodeOp, amount);
         emit WithdrawnForStaking(nodeOp, amount);
@@ -103,10 +103,10 @@ contract GGPVault is
 
     /// @notice Retrieves the address of the staking contract from the storage contract.
     /// @return The address of the staking contract as IStakingContractGGP.
-    function getStakingContractAddress() public view returns (IStakingContractGGP) {
+    function getStakingContractAddress() public view returns (address) {
         bytes32 args = keccak256(abi.encodePacked("contract.address", "staking"));
         IStorageContractGGP storageContract = IStorageContractGGP(ggpStorage);
-        return IStakingContractGGP(storageContract.getAddress(args));
+        return storageContract.getAddress(args);
     }
 
     /// @notice Calculates the total assets managed by the vault including staked and unstaked assets.
