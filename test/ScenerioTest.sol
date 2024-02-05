@@ -44,13 +44,19 @@ contract GGPVaultTest2 is Test {
     function testWalkThroughEntireScenerio() public {
         address nodeOp1 = address(0x999);
         address nodeOp2 = address(0x888);
-        // address randomUser1 = address(0x777);
-        // address randomUser2 = address(0x666);
+        address randomUser1 = address(0x777);
+        address randomUser2 = address(0x666);
         // address randomUser3 = address(0x555);
+
+        ggpToken.transfer(randomUser1, 10000e18);
+        ggpToken.transfer(randomUser2, 10000e18);
 
         address ggpVaultMultisig = address(0x69);
         vault = new GGPVault(); // Deploy the GGP Vault
         vault.initialize(address(ggpToken), address(mockStorage), ggpVaultMultisig); // initalize it and transfer ownership to our multisig
+
+        vm.expectRevert();
+        vault.initialize(address(ggpToken), address(mockStorage), ggpVaultMultisig); // can not initialize again
 
         bytes32 nodeOpRole = vault.APPROVED_NODE_OPERATOR();
         bytes32 defaultAdminRole = vault.DEFAULT_ADMIN_ROLE();
@@ -73,7 +79,53 @@ contract GGPVaultTest2 is Test {
         assertEq(vault.totalAssets(), 0); // check that the owner is the multisig
         assertEq(vault.getUnderlyingBalance(), 0); // check that the owner is the multisig
         assertEq(vault.stakingTotalAssets(), 0); // check that the owner is the multisig
-        assertEq(vault.getStakingContractAddress(), address(mockStaking)); // check that the owner is the multisig
+        assertEq(vault.getStakingContractAddress(), address(mockStaking)); // make sure can fetch staking contract correctly
+        assertEq(vault.ggpStorage(), address(mockStorage)); // make sure can fetch staking contract correctly
+        assertEq(vault.assetCap(), 33000e18); // make sure can fetch staking contract correctly
+        assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap()); // make sure can fetch staking contract correctly
+        vm.stopPrank();
+
+        // Vault seems to be in the expectd state, now lets's get going!
+
+        vm.startPrank(randomUser1); // start behalving as a depositor
+        uint256 randomUser1InitialDeposit = 10e18;
+        ggpToken.approve(address(vault), randomUser1InitialDeposit);
+        vault.deposit(randomUser1InitialDeposit, randomUser1);
+        assertEq(vault.balanceOf(randomUser1), randomUser1InitialDeposit); // make sure user is minted share tokens 1:1
+
+        assertEq(vault.totalAssets(), randomUser1InitialDeposit); // retest
+        assertEq(vault.getUnderlyingBalance(), randomUser1InitialDeposit); // retest
+        assertEq(vault.stakingTotalAssets(), 0); // retest
+        assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - randomUser1InitialDeposit); // retest
+        vm.stopPrank();
+
+        vm.startPrank(randomUser2);
+
+        uint256 randomUser2InitialDeposit = 10000e18;
+        ggpToken.approve(address(vault), randomUser2InitialDeposit);
+
+        vault.deposit(randomUser2InitialDeposit, randomUser2);
+        assertEq(vault.balanceOf(randomUser2), randomUser2InitialDeposit); // make sure user is minted share tokens 1:1
+
+        uint256 totalDeposits = randomUser1InitialDeposit + randomUser2InitialDeposit;
+
+        assertEq(vault.totalAssets(), totalDeposits); // retest
+        assertEq(vault.getUnderlyingBalance(), totalDeposits); // retest
+        assertEq(vault.stakingTotalAssets(), 0); // retest
+        assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - totalDeposits); // retest
+
+        // now test that users can burn some of their shares correctly.
+        // uint256 randomUser2Withdrawal = 100e18; // rounding causes errors
+        // vault.withdraw(randomUser2Withdrawal, randomUser2, randomUser2);
+
+        // uint256 totalDepositsAfterWithdraw1 = randomUser2InitialDeposit - randomUser2Withdrawal;
+
+        // assertEq(vault.balanceOf(randomUser2), totalDepositsAfterWithdraw1); // make sure user is minted share tokens 1:1
+
+        // assertEq(vault.totalAssets(), totalDepositsAfterWithdraw1); // retest
+        // assertEq(vault.getUnderlyingBalance(), totalDepositsAfterWithdraw1); // retest
+        // assertEq(vault.stakingTotalAssets(), 0); // retest
+        // assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - totalDepositsAfterWithdraw1); // retest
     }
 }
 
