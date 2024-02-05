@@ -115,10 +115,10 @@ contract GGPVaultTest2 is Test {
         assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - totalDeposits); // retest
 
         // now test that users can burn some of their shares correctly.
-        // uint256 randomUser2Withdrawal = 100e18; // rounding causes errors
-        // vault.withdraw(randomUser2Withdrawal, randomUser2, randomUser2);
+        uint256 randomUser2Withdrawal = 100e18; // rounding causes errors
+        vault.withdraw(randomUser2Withdrawal, randomUser2, randomUser2);
 
-        // uint256 totalDepositsAfterWithdraw1 = randomUser2InitialDeposit - randomUser2Withdrawal;
+        uint256 totalDepositsAfterWithdraw1 = totalDeposits - randomUser2Withdrawal;
 
         // assertEq(vault.balanceOf(randomUser2), totalDepositsAfterWithdraw1); // make sure user is minted share tokens 1:1
 
