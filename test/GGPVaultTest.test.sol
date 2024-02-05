@@ -57,22 +57,30 @@ contract GGPVaultTest is Test {
         uint256 assetsToDeposit = 1000e18; // Simulated staked amount
         assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), 0, "The total assets should be equal to deposits");
+        assertEq(vault.getUnderlyingBalance(), 0, "The total assets should be equal to deposits");
+
         vault.deposit(assetsToDeposit, msg.sender);
         assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
+        assertEq(vault.getUnderlyingBalance(), assetsToDeposit, "The total assets should be equal to deposits");
 
         vault.stakeOnValidator(assetsToDeposit / 2, nodeOp1);
         assertEq(vault.stakingTotalAssets(), assetsToDeposit / 2, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
+        assertEq(vault.getUnderlyingBalance(), assetsToDeposit / 2, "The total assets should be equal to deposits");
 
         vault.depositFromStaking(assetsToDeposit / 2);
         assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
+        assertEq(vault.getUnderlyingBalance(), assetsToDeposit, "The total assets should be equal to deposits");
 
         uint256 rewards = 100e18;
         vault.depositFromStaking(rewards);
         assertEq(vault.stakingTotalAssets(), 0, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), assetsToDeposit + rewards, "The total assets should be equal to deposits");
+        assertEq(
+            vault.getUnderlyingBalance(), assetsToDeposit + rewards, "The total assets should be equal to deposits"
+        );
     }
 
     function testInitialization() public {
