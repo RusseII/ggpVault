@@ -44,7 +44,9 @@ contract GGPVault is
     /// @notice Emitted when assets are deposited back from staking.
     event DepositedFromStaking(address indexed caller, uint256 amount);
 
+    event DepositYield(address indexed caller, uint256 amount);
     // Modifier to restrict access to the owner or an approved node operator
+
     modifier onlyOwnerOrApprovedNodeOperator() {
         require(
             hasRole(APPROVED_NODE_OPERATOR, _msgSender()) || owner() == _msgSender(),
@@ -101,6 +103,11 @@ contract GGPVault is
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
     }
 
+    function depositYield(uint256 amount) external onlyOwnerOrApprovedNodeOperator {
+        emit DepositYield(msg.sender, amount);
+        IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
+    }
+
     /// @notice Retrieves the address of the staking contract from the storage contract.
     /// @return The address of the staking contract as IStakingContractGGP.
     function getStakingContractAddress() public view returns (address) {
@@ -126,6 +133,20 @@ contract GGPVault is
         return assetCap > total ? assetCap - total : 0;
     }
 
+    function maxRedeem(address owner) public view override returns (uint256) {
+        uint256 ownerBalance = balanceOf(owner);
+        uint256 amountInVault = convertToShares(getUnderlyingBalance());
+        if (amountInVault > ownerBalance) return ownerBalance;
+        return amountInVault;
+    }
+
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        uint256 ownerBalance = convertToAssets(balanceOf(owner));
+        uint256 amountInVault = getUnderlyingBalance();
+        if (amountInVault > ownerBalance) return ownerBalance;
+        return amountInVault;
+    }
+
     /// @notice Gets the balance of underlying assets held by the vault.
     /// @return The balance of underlying assets.
     function getUnderlyingBalance() public view returns (uint256) {
@@ -136,3 +157,5 @@ contract GGPVault is
     /// @param newImplementation The address of the new contract implementation.
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
+
+// ok i'm not 100%$ sure but I think i'm supposed to override the maxRedeem and the maxWithdraw methods methods

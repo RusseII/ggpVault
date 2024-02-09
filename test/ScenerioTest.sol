@@ -119,13 +119,57 @@ contract GGPVaultTest2 is Test {
         vault.withdraw(randomUser2Withdrawal, randomUser2, randomUser2);
 
         uint256 totalDepositsAfterWithdraw1 = totalDeposits - randomUser2Withdrawal;
+        uint256 expectedUser2Deposits = totalDepositsAfterWithdraw1 - randomUser1InitialDeposit;
+        assertEq(vault.balanceOf(randomUser2), expectedUser2Deposits); // make sure user is minted share tokens 1:1
 
-        // assertEq(vault.balanceOf(randomUser2), totalDepositsAfterWithdraw1); // make sure user is minted share tokens 1:1
+        assertEq(vault.totalAssets(), totalDepositsAfterWithdraw1); // retest
+        assertEq(vault.getUnderlyingBalance(), totalDepositsAfterWithdraw1); // retest
+        assertEq(vault.stakingTotalAssets(), 0); // retest
+        assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - totalDepositsAfterWithdraw1); // retest
+        vm.stopPrank();
 
-        // assertEq(vault.totalAssets(), totalDepositsAfterWithdraw1); // retest
-        // assertEq(vault.getUnderlyingBalance(), totalDepositsAfterWithdraw1); // retest
-        // assertEq(vault.stakingTotalAssets(), 0); // retest
-        // assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - totalDepositsAfterWithdraw1); // retest
+        // Now let's withdraw the GGP onto a node, and then deposit back from staking
+        vm.startPrank(ggpVaultMultisig); // start behalving as the multisig
+        uint256 amountToStake = vault.totalAssets();
+        vault.stakeOnValidator(amountToStake, nodeOp1);
+        assertEq(vault.totalAssets(), amountToStake); // retest
+        assertEq(vault.getUnderlyingBalance(), 0); // retest
+        assertEq(vault.stakingTotalAssets(), amountToStake); // retest
+        assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - amountToStake); // retest
+        vm.stopPrank();
+
+        // maybe add another section about user depositing here when vault is empty?
+
+        // TODO This behavior probably isn't exactly what we want? We'd want to update
+        // TODO look at what would happen if we deposited the GGP rewards instead of depositFromStaking method
+        uint256 stakingRewardsAt20PercentApy = vault.totalAssets() / 62; // rough amount needed for 20%
+
+        // distribute rewards
+        ggpToken.transfer(nodeOp1, stakingRewardsAt20PercentApy);
+
+        vm.startPrank(nodeOp1);
+
+        ggpToken.approve(address(vault), stakingRewardsAt20PercentApy);
+        vault.depositYield(stakingRewardsAt20PercentApy); // deposit rewards
+        assertEq(vault.totalAssets(), amountToStake + stakingRewardsAt20PercentApy); // retest
+        assertEq(vault.getUnderlyingBalance(), stakingRewardsAt20PercentApy); // retest
+        assertEq(vault.stakingTotalAssets(), amountToStake); // retest
+
+        uint256 maxRedeemUser2 = vault.maxRedeem(randomUser2);
+        uint256 maxWithdrawUser2 = vault.maxWithdraw(randomUser2);
+
+        assertApproxEqAbs(vault.previewWithdraw(maxWithdrawUser2), vault.maxRedeem(randomUser2), 10); // retest
+        assertApproxEqAbs(vault.previewRedeem(maxRedeemUser2), vault.maxWithdraw(randomUser2), 10); // retest
+
+        vm.startPrank(randomUser2);
+        // vm.expectRevert();
+        // vault.redeem(maxRedeemUser2, randomUser2, randomUser2);
+
+        // vm.expectRevert();
+        assertEq(maxWithdrawUser2, vault.getUnderlyingBalance());
+        // vault.withdraw(maxWithdrawUser2, randomUser2, randomUser2);
+
+        //
     }
 }
 
