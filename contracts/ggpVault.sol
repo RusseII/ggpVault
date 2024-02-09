@@ -133,13 +133,22 @@ contract GGPVault is
         return assetCap > total ? assetCap - total : 0;
     }
 
+
+# TODO TEST
+    function maxMint(address _receiver) public view override returns (uint256) {
+        uint256 total = totalAssets();
+        if (assetCap > total) return convertToShares(assetCap - total);
+        return 0;
+    }
+
+# TODO TEST
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 ownerBalance = balanceOf(owner);
         uint256 amountInVault = convertToShares(getUnderlyingBalance());
         if (amountInVault > ownerBalance) return ownerBalance;
         return amountInVault;
     }
-
+# TODO TEST
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 ownerBalance = convertToAssets(balanceOf(owner));
         uint256 amountInVault = getUnderlyingBalance();
