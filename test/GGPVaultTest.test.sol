@@ -262,4 +262,47 @@ contract GGPVaultTest is Test {
         uint256 expectedMaxDeposit = newAssetCap - depositedAssets;
         assertEq(vault.maxDeposit(address(this)), expectedMaxDeposit, "Max deposit should reflect the new asset cap");
     }
+
+    function testMaxMintScenariosWithExpectedValues() public {
+        uint256 assetCap = 33000e18; // Set the asset cap
+        vault.setAssetCap(assetCap);
+
+        // Assuming the minting calculation is directly related to the asset cap and current total assets
+        // For simplicity, let's assume 1 token deposited = 1 share minted (1:1 ratio)
+
+        // Test with no assets in vault
+        uint256 expectedMaxMintNoAssets = assetCap; // Since no assets, maxMint should allow up to the asset cap
+        uint256 maxMintNoAssets = vault.maxMint(address(this));
+        assertEq(maxMintNoAssets, expectedMaxMintNoAssets, "Max mint should equal asset cap with no assets in vault");
+
+        // Deposit assets and test under normal conditions
+        uint256 initialDeposit = 10000e18;
+        vault.deposit(initialDeposit, address(this));
+        uint256 expectedMaxMintNormal = assetCap - initialDeposit; // Adjusted for deposited assets
+        uint256 maxMintNormal = vault.maxMint(address(this));
+        assertEq(maxMintNormal, expectedMaxMintNormal, "Max mint should adjust based on deposited assets");
+
+        // Withdraw assets and test maxMint adjustment
+        uint256 withdrawalAmount = 5000e18;
+        vault.withdraw(withdrawalAmount, address(this), address(this));
+        uint256 expectedMaxMintAfterWithdrawal = expectedMaxMintNormal + withdrawalAmount; // Increase by the withdrawn amount
+        uint256 maxMintAfterWithdrawal = vault.maxMint(address(this));
+        assertEq(maxMintAfterWithdrawal, expectedMaxMintAfterWithdrawal, "Max mint should increase after withdrawals");
+
+        // Deposit more assets to fill the vault to its cap
+        uint256 additionalDepositToFill = assetCap - initialDeposit + withdrawalAmount;
+        vault.deposit(additionalDepositToFill, address(this));
+        uint256 maxMintFullVault = vault.maxMint(address(this));
+        assertEq(maxMintFullVault, 0, "Max mint should be 0 when vault is full");
+
+        // Withdraw to below the cap and check maxMint adjustment
+        vault.withdraw(withdrawalAmount, address(this), address(this));
+        uint256 expectedMaxMintAfterSecondWithdrawal = withdrawalAmount; // Should allow minting up to the amount withdrawn to be below cap
+        uint256 maxMintAfterSecondWithdrawal = vault.maxMint(address(this));
+        assertEq(
+            maxMintAfterSecondWithdrawal,
+            expectedMaxMintAfterSecondWithdrawal,
+            "Max mint should adjust correctly after second withdrawal"
+        );
+    }
 }
