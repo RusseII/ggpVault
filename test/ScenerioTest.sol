@@ -29,16 +29,6 @@ contract GGPVaultTest2 is Test {
         mockStaking = new MockStaking(ggpToken);
         mockStorage = new MockStorage();
         mockStorage.setAddress(keccak256(abi.encodePacked("contract.address", "staking")), address(mockStaking));
-
-        // vault = new GGPVault();
-        // vault.initialize(address(ggpToken), address(mockStorage), address(this));
-        // vault.grantRole(vault.APPROVED_NODE_OPERATOR(), nodeOp1);
-        // ggpToken.approve(address(vault), type(uint256).max);
-
-        // ggpToken.transfer(nodeOp1, 100000e18);
-        // ggpToken.approve(address(vault), type(uint256).max);
-        // vm.prank(nodeOp1);
-        // ggpToken.approve(address(vault), type(uint256).max);
     }
 
     function testWalkThroughEntireScenerio() public {
@@ -73,6 +63,7 @@ contract GGPVaultTest2 is Test {
         assertEq(vault.hasRole(defaultAdminRole, ggpVaultMultisig), true); // check that the owner is the multisig
 
         vm.startPrank(ggpVaultMultisig); // start behalving as the multisig
+
         vault.grantRole(nodeOpRole, nodeOp1); // grant roles to the both node operators so GGP can be staked on thier behalf
         vault.grantRole(nodeOpRole, nodeOp2); // grant roles to the both node operators so GGP can be staked on thier behalf
 
@@ -131,7 +122,11 @@ contract GGPVaultTest2 is Test {
         // Now let's withdraw the GGP onto a node, and then deposit back from staking
         vm.startPrank(ggpVaultMultisig); // start behalving as the multisig
         uint256 amountToStake = vault.totalAssets();
-        vault.stakeOnValidator(amountToStake, nodeOp1);
+
+        // done cuz dumb stack depth errors
+        address nodeOp1_ = nodeOp1;
+
+        vault.stakeOnValidator(amountToStake, nodeOp1_);
         assertEq(vault.totalAssets(), amountToStake); // retest
         assertEq(vault.getUnderlyingBalance(), 0); // retest
         assertEq(vault.stakingTotalAssets(), amountToStake); // retest
@@ -145,9 +140,9 @@ contract GGPVaultTest2 is Test {
         uint256 stakingRewardsAt20PercentApy = vault.totalAssets() / 62; // rough amount needed for 20%
 
         // distribute rewards
-        ggpToken.transfer(nodeOp1, stakingRewardsAt20PercentApy);
+        ggpToken.transfer(nodeOp1_, stakingRewardsAt20PercentApy);
 
-        vm.startPrank(nodeOp1);
+        vm.startPrank(nodeOp1_);
 
         ggpToken.approve(address(vault), stakingRewardsAt20PercentApy);
         vault.depositYield(stakingRewardsAt20PercentApy); // deposit rewards
@@ -155,21 +150,14 @@ contract GGPVaultTest2 is Test {
         assertEq(vault.getUnderlyingBalance(), stakingRewardsAt20PercentApy); // retest
         assertEq(vault.stakingTotalAssets(), amountToStake); // retest
 
-        uint256 maxRedeemUser2 = vault.maxRedeem(randomUser2);
-        uint256 maxWithdrawUser2 = vault.maxWithdraw(randomUser2);
+        address randomUser2_ = randomUser2;
+        uint256 maxRedeemUser2 = vault.maxRedeem(randomUser2_);
+        uint256 maxWithdrawUser2 = vault.maxWithdraw(randomUser2_);
 
-        assertApproxEqAbs(vault.previewWithdraw(maxWithdrawUser2), vault.maxRedeem(randomUser2), 10); // retest
-        assertApproxEqAbs(vault.previewRedeem(maxRedeemUser2), vault.maxWithdraw(randomUser2), 10); // retest
+        assertApproxEqAbs(vault.previewWithdraw(maxWithdrawUser2), vault.maxRedeem(randomUser2_), 10); // retest
+        assertApproxEqAbs(vault.previewRedeem(maxRedeemUser2), vault.maxWithdraw(randomUser2_), 10); // retest
 
-        vm.startPrank(randomUser2);
-        // vm.expectRevert();
-        // vault.redeem(maxRedeemUser2, randomUser2, randomUser2);
-
-        // vm.expectRevert();
         assertEq(maxWithdrawUser2, vault.getUnderlyingBalance());
-        // vault.withdraw(maxWithdrawUser2, randomUser2, randomUser2);
-
-        //
     }
 }
 
