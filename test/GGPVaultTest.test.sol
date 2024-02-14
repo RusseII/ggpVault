@@ -47,7 +47,7 @@ contract GGPVaultTest is Test {
 
         vault.deposit(amount, msg.sender);
         assertEq(vault.balanceOf(msg.sender), amount, "Depositor gets correct amount of shares");
-        vault.stakeOnValidator(amount, nodeOp1);
+        vault.stakeOnValidator(amount, nodeOp1, 0);
 
         assertEq(vault.stakingTotalAssets(), amount, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), amount, "The total assets should be equal to deposits");
@@ -64,7 +64,7 @@ contract GGPVaultTest is Test {
         assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
         assertEq(vault.getUnderlyingBalance(), assetsToDeposit, "The total assets should be equal to deposits");
 
-        vault.stakeOnValidator(assetsToDeposit / 2, nodeOp1);
+        vault.stakeOnValidator(assetsToDeposit / 2, nodeOp1, 0);
         assertEq(vault.stakingTotalAssets(), assetsToDeposit / 2, "The staking total assets should be updated");
         assertEq(vault.totalAssets(), assetsToDeposit, "The total assets should be equal to deposits");
         assertEq(vault.getUnderlyingBalance(), assetsToDeposit / 2, "The total assets should be equal to deposits");

@@ -44,7 +44,7 @@ contract GGPVault is
     /// @notice Emitted when assets are deposited back from staking.
     event DepositedFromStaking(address indexed caller, uint256 amount);
 
-    event DepositYield(address indexed caller, uint256 amount);
+    event DepositYield(uint256 amount);
     // Modifier to restrict access to the owner or an approved node operator
 
     modifier onlyOwnerOrApprovedNodeOperator() {
@@ -86,9 +86,12 @@ contract GGPVault is
     /// @notice Allows the staking of a specified amount of tokens on behalf of a node operator.
     /// @param amount The amount of tokens to stake.
     /// @param nodeOp The address of the node operator to stake on behalf of.
-    function stakeOnValidator(uint256 amount, address nodeOp) external onlyOwner {
+    function stakeOnValidator(uint256 amount, address nodeOp, uint256 rewardAmount) external onlyOwner {
         _checkRole(APPROVED_NODE_OPERATOR, nodeOp);
         stakingTotalAssets += amount;
+        stakingTotalAssets += rewardAmount;
+        emit DepositYield(amount);
+
         IStakingContractGGP stakingContract = IStakingContractGGP(getStakingContractAddress());
         IERC20(asset()).approve(address(stakingContract), amount);
         stakingContract.stakeGGPOnBehalfOf(nodeOp, amount);
@@ -100,11 +103,6 @@ contract GGPVault is
     function depositFromStaking(uint256 amount) external onlyOwnerOrApprovedNodeOperator {
         stakingTotalAssets = amount >= stakingTotalAssets ? 0 : stakingTotalAssets - amount;
         emit DepositedFromStaking(msg.sender, amount);
-        IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
-    }
-
-    function depositYield(uint256 amount) external onlyOwnerOrApprovedNodeOperator {
-        emit DepositYield(msg.sender, amount);
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
     }
 
@@ -163,5 +161,3 @@ contract GGPVault is
     /// @param newImplementation The address of the new contract implementation.
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
-
-// ok i'm not 100%$ sure but I think i'm supposed to override the maxRedeem and the maxWithdraw methods methods

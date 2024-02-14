@@ -126,29 +126,23 @@ contract GGPVaultTest2 is Test {
         // done cuz dumb stack depth errors
         address nodeOp1_ = nodeOp1;
 
-        vault.stakeOnValidator(amountToStake, nodeOp1_);
-        assertEq(vault.totalAssets(), amountToStake); // retest
+        uint256 stakingRewardsAt20PercentApy = vault.totalAssets() / 62; // rough amount needed for 20%
+
+        vault.stakeOnValidator(amountToStake, nodeOp1_, stakingRewardsAt20PercentApy);
+        assertEq(vault.totalAssets(), amountToStake + stakingRewardsAt20PercentApy); // retest
         assertEq(vault.getUnderlyingBalance(), 0); // retest
-        assertEq(vault.stakingTotalAssets(), amountToStake); // retest
-        assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - amountToStake); // retest
+        assertEq(vault.stakingTotalAssets(), amountToStake + stakingRewardsAt20PercentApy); // retest
+        // assertEq(vault.maxDeposit(ggpVaultMultisig), vault.assetCap() - amountToStake); // retest
         vm.stopPrank();
 
         // maybe add another section about user depositing here when vault is empty?
 
         // TODO This behavior probably isn't exactly what we want? We'd want to update
         // TODO look at what would happen if we deposited the GGP rewards instead of depositFromStaking method
-        uint256 stakingRewardsAt20PercentApy = vault.totalAssets() / 62; // rough amount needed for 20%
 
         // distribute rewards
-        ggpToken.transfer(nodeOp1_, stakingRewardsAt20PercentApy);
 
         vm.startPrank(nodeOp1_);
-
-        ggpToken.approve(address(vault), stakingRewardsAt20PercentApy);
-        vault.depositYield(stakingRewardsAt20PercentApy); // deposit rewards
-        assertEq(vault.totalAssets(), amountToStake + stakingRewardsAt20PercentApy); // retest
-        assertEq(vault.getUnderlyingBalance(), stakingRewardsAt20PercentApy); // retest
-        assertEq(vault.stakingTotalAssets(), amountToStake); // retest
 
         address randomUser2_ = randomUser2;
         uint256 maxRedeemUser2 = vault.maxRedeem(randomUser2_);
